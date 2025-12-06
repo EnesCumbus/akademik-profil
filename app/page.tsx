@@ -6,14 +6,16 @@ import {
   MapPin, Mail, Phone, Globe, FileText, 
   Briefcase, GraduationCap, Building, Star, 
   Book, Layers, Search, ChevronRight, 
-  LucideIcon, Grid, Menu, X, Calendar, User, Layout, ArrowUpRight
+  LucideIcon, Grid, Menu, X, Calendar, User, ArrowUpRight,
+  Layout
 } from 'lucide-react';
 
 import { profileData } from './lib/data'; 
 import Image from 'next/image';
 
-// --- 1. TİP GÜVENLİĞİ (STRICT MODE UYUMLU) ---
+// --- 1. GÜVENLİ TİP TANIMLAMALARI ---
 
+// İçerik öğeleri için güvenli tip
 interface ContentItem {
   id?: string;
   title?: string;
@@ -35,7 +37,7 @@ interface ContentItem {
   degree?: string;
   school?: string;
   field?: string;
-  // Index signature: Herhangi bir string anahtara izin ver ama değerleri kontrol et
+  // Diğer olası string alanlar için
   [key: string]: string | number | undefined | null;
 }
 
@@ -43,8 +45,7 @@ interface CategoryConfig {
   id: string;
   label: string;
   icon: LucideIcon;
-  // dataKey sadece profileData anahtarları olabilir
-  dataKey: keyof typeof profileData | 'education';
+  dataKey: keyof typeof profileData;
   color: string;      
   bgLight: string;    
   border: string;     
@@ -52,9 +53,9 @@ interface CategoryConfig {
   viewType: 'grid' | 'timeline' | 'profile';
 }
 
-// Kategoriler SABİT olduğu için bileşen dışına alındı (useEffect hatasını çözer)
+// Kategoriler
 const CATEGORIES: CategoryConfig[] = [
- 
+  // 'personal' verisi array olmadığı için özel olarak 'profile' tipinde işliyoruz
   { id: 'overview', label: 'Genel Bakış', icon: User, dataKey: 'personal', color: 'text-slate-700', bgLight: 'bg-slate-50', border: 'border-slate-400', badge: 'bg-slate-100 text-slate-600', viewType: 'profile' },
   { id: 'education', label: 'Eğitim Bilgileri', icon: GraduationCap, dataKey: 'education', color: 'text-rose-600', bgLight: 'bg-rose-50', border: 'border-rose-500', badge: 'bg-rose-100 text-rose-700', viewType: 'timeline' },
   { id: 'experience', label: 'Akademik Görevler', icon: Briefcase, dataKey: 'experience', color: 'text-emerald-600', bgLight: 'bg-emerald-50', border: 'border-emerald-500', badge: 'bg-emerald-100 text-emerald-700', viewType: 'timeline' },
@@ -78,19 +79,20 @@ export default function Home() {
     setIsMounted(true);
   }, []);
 
-  // --- USEMEMO İLE PERFORMANSLI FİLTRELEME ---
+  // --- DATA FİLTRELEME (useMemo) ---
   const filteredItems = useMemo(() => {
     if (activeTab === 'overview') return [];
 
     const activeCat = CATEGORIES.find(c => c.id === activeTab);
     if (!activeCat) return [];
 
-    // Veriye güvenli erişim
-   
+    // Veri güvenliği: Sadece array olanları filtrele
     const rawData = profileData[activeCat.dataKey];
     
-    // Sadece dizi ise işle (Personal verisi dizi değil, obje)
-    const items = Array.isArray(rawData) ? (rawData as ContentItem[]) : [];
+    // Eğer veri array değilse (örn: personal objesi), boş dizi dön
+    if (!Array.isArray(rawData)) return [];
+
+    const items = rawData as ContentItem[];
 
     if (!searchQuery) return items;
 
@@ -122,10 +124,14 @@ export default function Home() {
                {activeCategoryInfo?.label || 'Profil'}
             </span>
          </div>
-         {/* Mobil Header Sağ Üstteki Küçük Avatar */}
-         <div className="relative w-8 h-8 rounded-full overflow-hidden border border-slate-200">
-            {profileData.personal?.image && (
+         {/* Mobil Sağ Üst: Küçük Resim (İsteğiniz üzerine) */}
+         <div className="relative w-8 h-8 rounded-full overflow-hidden border border-slate-200 shadow-sm">
+            {profileData.personal?.image ? (
                <Image src={profileData.personal.image} alt="Profile" fill className="object-cover" />
+            ) : (
+               <div className="w-full h-full bg-slate-200 flex items-center justify-center">
+                  <User size={16} className="text-slate-400" />
+               </div>
             )}
          </div>
       </div>
@@ -134,7 +140,7 @@ export default function Home() {
       <>
         {isMobileMenuOpen && (
           <div 
-            className="fixed inset-0 bg-slate-900/20 z-40 lg:hidden backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 bg-slate-900/40 z-40 lg:hidden backdrop-blur-sm transition-opacity"
             onClick={() => setIsMobileMenuOpen(false)}
           />
         )}
@@ -144,22 +150,33 @@ export default function Home() {
           ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}>
           <div className="lg:hidden absolute top-4 right-4 z-50">
-             <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-500">
+             <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600">
                 <X size={20} />
              </button>
           </div>
 
-          {/* --- MENÜ BAŞLIĞI --- */}
+          {/* --- SIDEBAR BAŞLIK (MOBİLDE RESİMLİ, MASAÜSTÜNDE SADE) --- */}
           <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-             {/* İSTEĞİNİZ ÜZERİNE BURAYA PROFİL RESMİ VE BİLGİLERİ EKLENDİ */}
-             <div className="flex flex-col items-center text-center">
-                <div className="relative w-20 h-20 mb-3 rounded-full border-2 border-white shadow-md overflow-hidden">
+             {/* Sadece Mobilde (lg:hidden) Resim ve İsim Göster */}
+             <div className="lg:hidden flex flex-col items-center text-center mb-2">
+                <div className="relative w-20 h-20 mb-3 rounded-full border-4 border-white shadow-md overflow-hidden">
                    {profileData.personal?.image ? (
                       <Image src={profileData.personal.image} alt="Profile" fill className="object-cover" />
                    ) : <div className="w-full h-full bg-slate-200"/>}
                 </div>
                 <h1 className="text-base font-bold text-slate-900 leading-tight">{profileData.personal.name}</h1>
                 <p className="text-xs text-slate-500 mt-1">{profileData.personal.title}</p>
+             </div>
+
+             {/* Masaüstünde (hidden lg:flex) Sadece Logo/İkon Göster */}
+             <div className="hidden lg:flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-200">
+                   <Grid size={20} />
+                </div>
+                <div>
+                   <h1 className="text-sm font-bold text-slate-900">Portfolyo</h1>
+                   <p className="text-xs text-slate-500">Akademik Sistem</p>
+                </div>
              </div>
           </div>
 
@@ -173,7 +190,7 @@ export default function Home() {
                    setSearchQuery(''); 
                    setIsMobileMenuOpen(false); 
                  }}
-                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all group ${
+                 className={`w-full flex items-center justify-between px-3 py-3 rounded-lg text-sm font-medium transition-all group ${
                    activeTab === cat.id 
                      ? `${cat.bgLight} ${cat.color} ring-1 ring-inset ring-black/5 shadow-sm` 
                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
@@ -190,7 +207,7 @@ export default function Home() {
           </div>
           
           <div className="p-4 border-t border-slate-100 text-center text-[10px] text-slate-400">
-             &copy; {new Date().getFullYear()} Tüm Hakları Saklıdır
+             &copy; {new Date().getFullYear()}
           </div>
         </aside>
       </>
@@ -224,67 +241,85 @@ export default function Home() {
         {/* --- SCROLL ALANI --- */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10 custom-scrollbar relative z-10">
            
-           {/* --- 1. OVERVIEW (PROFİL KARTI) --- */}
+           {/* --- 1. OVERVIEW (PROFİL KARTI - İSTENİLEN TASARIM) --- */}
            {activeTab === 'overview' && (
               <div className="max-w-4xl mx-auto animate-in fade-in zoom-in duration-500">
                  
                  {/* Profil Kartı */}
-                 <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden text-center pb-8 mb-8">
-                    {/* Arka Plan Deseni */}
-                    <div className="h-32 md:h-40 bg-gradient-to-r from-slate-800 to-slate-900 relative">
-                        <div className="absolute inset-0 opacity-20" style={{backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
+                 <div className="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden text-center pb-10 mb-8 relative">
+                    {/* Üst Kısım (Lacivert Pattern) */}
+                    <div className="h-40 bg-[#0f172a] relative overflow-hidden flex items-center justify-center">
+                        <div className="absolute inset-0 opacity-20" style={{backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '24px 24px'}}></div>
                     </div>
                     
-                    {/* Profil Fotosu - MASAÜSTÜNDE GİZLİ (Çünkü Solda Menüde Var), MOBİLDE DE GİZLİ (Menüde Var) - BURADA ORTAYA ÇIKARALIM MI? */}
-                    {/* İSTEĞİNİZE GÖRE: Webde (Masaüstü) burada gözüksün, Mobilde (hidden md:flex) zaten gizliydi. */}
-                    <div className="-mt-16 mb-4 justify-center hidden md:flex">
-                       <div className="relative w-32 h-32 md:w-40 md:h-40 rounded-2xl border-4 border-white shadow-2xl bg-white overflow-hidden">
+                    {/* Profil Fotosu (Sadece Web'de Görünür) */}
+                    <div className="-mt-20 mb-6 justify-center hidden md:flex">
+                       <div className="relative w-40 h-40 rounded-2xl border-4 border-white shadow-2xl bg-white overflow-hidden">
                           {profileData.personal?.image ? (
                              <Image src={profileData.personal.image} alt="Profile" fill className="object-cover" />
                           ) : <div className="w-full h-full bg-slate-200"/>}
                        </div>
                     </div>
-                    {/* Mobilde boşluk bırakmak için */}
-                    <div className="md:hidden mt-6"></div>
+                    {/* Mobilde boşluk */}
+                    <div className="md:hidden mt-8"></div>
 
-                    {/* İsim ve Unvan */}
-                    <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mb-2 px-4">{profileData.personal.name}</h1>
-                    <p className="text-xs md:text-sm font-semibold text-slate-500 uppercase tracking-widest mb-1 px-4">{profileData.personal.university}</p>
-                    <p className="text-xs text-slate-400 mb-8 px-4">{profileData.personal.faculty}</p>
+                    {/* İsim ve Ünvan */}
+                    <h1 className="text-3xl font-extrabold text-slate-900 mb-2 px-4 tracking-tight">
+                        {profileData.personal.name}
+                    </h1>
+                    <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-1 px-4">
+                        {profileData.personal.university}
+                    </p>
+                    <p className="text-sm text-slate-400 mb-8 px-4 font-medium">
+                        {profileData.personal.faculty}
+                    </p>
 
-                    {/* İletişim Butonları */}
-                    <div className="flex flex-wrap justify-center gap-3 mb-10 px-4">
-                       <a href={`mailto:${profileData.personal.email}`} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-full text-xs md:text-sm font-medium hover:bg-red-700 transition-colors shadow-lg shadow-red-200">
-                          <Mail size={14}/> {profileData.personal.email}
+                    {/* İletişim Butonları (Görseldeki gibi Kırmızı ve Koyu Mavi) */}
+                    <div className="flex flex-wrap justify-center gap-4 mb-8 px-4">
+                       <a href={`mailto:${profileData.personal.email}`} className="flex items-center gap-2 px-6 py-3 bg-[#ea0029] text-white rounded-full text-sm font-bold hover:bg-red-700 transition-all shadow-lg hover:shadow-red-200 transform hover:-translate-y-0.5">
+                          <Mail size={18}/> {profileData.personal.email}
                        </a>
-                       <div className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-full text-xs md:text-sm font-medium shadow-lg shadow-slate-300">
-                          <Phone size={14}/> {profileData.personal.phone}
+                       <div className="flex items-center gap-2 px-6 py-3 bg-[#1e293b] text-white rounded-full text-sm font-bold shadow-lg shadow-slate-200">
+                          <Phone size={18}/> {profileData.personal.phone}
                        </div>
                     </div>
 
-                    {/* Akademik Bağlantılar */}
-                    <div className="flex flex-wrap justify-center gap-2 mb-8 px-4">
-                        <a href="https://akbis.gantep.edu.tr/detay/?A_ID=45064" target="_blank" className="flex items-center gap-1 px-3 py-1 bg-teal-50 border border-teal-200 text-teal-700 text-xs font-bold rounded-lg hover:bg-teal-100 transition-colors">
+                    {/* Akademik Butonlar (YÖK, ORCID, WoS) */}
+                    <div className="flex justify-center gap-3 mb-10 px-4">
+                        <a href="https://akbis.gantep.edu.tr/detay/?A_ID=45064" target="_blank" className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white text-xs font-bold rounded-lg hover:bg-teal-600 transition-colors shadow-md">
                            <Globe size={14}/> YÖK Akademik
                         </a>
-                        <div className="flex items-center gap-1 px-3 py-1 bg-green-50 border border-green-200 text-green-700 text-xs font-bold rounded-lg">
+                        <div className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white text-xs font-bold rounded-lg shadow-md cursor-default">
                            <Globe size={14}/> ORCID
                         </div>
-                        <div className="flex items-center gap-1 px-3 py-1 bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold rounded-lg">
+                        <div className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg shadow-md cursor-default">
                            <Globe size={14}/> WoS
                         </div>
                     </div>
+
+                    {/* Etiketler */}
+                    <div className="flex flex-wrap justify-center gap-2 px-6 max-w-3xl mx-auto">
+                       {["Eğitim Bilimleri Temel Alanı", "Eğitim Programları ve Öğretim", "Eğitim Politikaları", "Eğitimin Sosyal ve Tarihi Temelleri"].map((tag, i) => (
+                          <span key={i} className="px-3 py-1.5 bg-slate-800 text-white text-[11px] font-bold rounded-md shadow-sm">
+                             {tag}
+                          </span>
+                       ))}
+                    </div>
                  </div>
 
-                 {/* Hızlı İstatistikler */}
+                 {/* Hızlı İstatistikler (Bento Grid) */}
                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {profileData.stats.map((stat, idx) => (
-                       <div key={idx} className="group bg-white p-6 rounded-2xl border border-slate-200 shadow-sm text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-                          <div className="w-10 h-10 mx-auto bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                             <stat.icon size={20} />
+                       <div key={idx} className="group bg-[#1e293b] p-6 rounded-2xl shadow-lg text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
+                          {/* Arka plan efekti */}
+                          <div className="absolute top-0 right-0 p-8 opacity-5">
+                             <stat.icon size={64} className="text-white" />
                           </div>
-                          <h3 className="text-2xl font-extrabold text-slate-800">{stat.value}</h3>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{stat.label}</p>
+                          <div className="w-12 h-12 mx-auto bg-white/10 text-indigo-400 rounded-xl flex items-center justify-center mb-3 backdrop-blur-sm">
+                             <stat.icon size={22} />
+                          </div>
+                          <h3 className="text-3xl font-extrabold text-white mb-1">{stat.value}</h3>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{stat.label}</p>
                        </div>
                     ))}
                  </div>
@@ -294,7 +329,7 @@ export default function Home() {
            {/* --- 2. TIMELINE (Eğitim, Deneyim, İdari) --- */}
            {activeCategoryInfo?.viewType === 'timeline' && (
               <div className="max-w-4xl mx-auto py-2">
-                 <h2 className="text-2xl font-bold text-slate-800 mb-8 px-2">{activeCategoryInfo.label}</h2>
+                 <h2 className="text-2xl font-bold text-slate-800 mb-8 px-2 border-b border-slate-200 pb-4">{activeCategoryInfo.label}</h2>
                  
                  <div className="relative border-l-2 border-slate-200 ml-4 md:ml-6 space-y-12 pb-12">
                     {filteredItems.map((item, idx) => (
@@ -311,10 +346,10 @@ export default function Home() {
                           <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
                              {/* Sol: Etiket ve Tarih */}
                              <div className="flex-shrink-0 w-36 pt-1">
-                                <span className={`inline-block px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider mb-2 ${activeCategoryInfo.badge}`}>
-                                   {item.type || item.level || item.title?.split(' ')[0] || 'GÖREV'}
+                                <span className={`inline-block px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider mb-2 text-white ${activeCategoryInfo.color.replace('text-', 'bg-')}`}>
+                                   {item.type || item.level || (item.title ? String(item.title).split(' ')[0] : 'GÖREV')}
                                 </span>
-                                <div className="text-sm font-semibold text-slate-500 font-mono">
+                                <div className="text-sm font-bold text-slate-700 font-mono">
                                    {item.year}
                                 </div>
                              </div>
@@ -368,7 +403,7 @@ export default function Home() {
                                  {item.type || item.level || 'Yayın'}
                               </span>
                               {(item.year || item.date) && (
-                                 <span className="text-[11px] font-mono text-slate-400 font-medium bg-slate-50 px-2 py-1 rounded">
+                                 <span className="text-[11px] font-mono text-slate-500 font-bold bg-slate-100 px-2 py-1 rounded">
                                     {item.year || item.date}
                                  </span>
                               )}
@@ -383,18 +418,18 @@ export default function Home() {
                                  {(item.authors || item.student) && (
                                     <div className="flex items-center gap-1.5 truncate">
                                        <User size={12} className="text-slate-400"/> 
-                                       <span className="truncate">{item.authors || item.student}</span>
+                                       <span className="truncate text-slate-600 font-medium">{item.authors || item.student}</span>
                                     </div>
                                  )}
                                  {(item.publisher || item.place || item.conference) && (
                                     <div className="flex items-center gap-1.5 truncate">
                                        <MapPin size={12} className="text-slate-400"/>
-                                       <span className="truncate">{item.publisher || item.place || item.conference}</span>
+                                       <span className="truncate text-slate-600">{item.publisher || item.place || item.conference}</span>
                                     </div>
                                  )}
                                  {item.isbn && (
                                     <div className="flex items-center gap-1.5 truncate">
-                                       <span className="font-mono text-[10px] bg-slate-100 px-1 rounded">ISBN: {item.isbn}</span>
+                                       <span className="font-mono text-[10px] bg-slate-100 px-1 rounded text-slate-500">ISBN: {item.isbn}</span>
                                     </div>
                                  )}
                               </div>
